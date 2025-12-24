@@ -142,11 +142,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Main Content Area with Sidebar */}
+      {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-64 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-black" />
-
         {/* Main Content */}
         <main className="flex-1 bg-gray-50 dark:bg-zinc-950 overflow-auto">
           {children}
