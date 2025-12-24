@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FossilViewer",
-  description: "FossilViewer application",
+  title: "Fossil Collection",
+  description: "Fossil Collection Viewer",
 };
 
 export default function RootLayout({
