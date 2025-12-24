@@ -12,6 +12,7 @@ export default function AuthPage() {
   const [name, setName] = useState('')
   const [location, setLocation] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null)
   const router = useRouter()
@@ -25,6 +26,7 @@ export default function AuthPage() {
     if (!supabase) return
     
     setError('')
+    setSuccess('')
     setLoading(true)
 
     try {
@@ -42,22 +44,74 @@ export default function AuthPage() {
           email,
           password,
           options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
             data: {
               name, // this will be available in the trigger
             }
           }
         })
-        if (error) throw error
+        
+        if (error) {
+          // If it's an email sending error, we can still proceed if user was created
+          if (error.message.includes('confirmation email') && data?.user) {
+            // User was created but email failed - this is okay for development
+            setSuccess('Account created successfully! You can now log in.')
+            // Still try to update profile
+            const userId = (data.user as { id: string }).id
+            if (userId) {
+              try {
+                await supabase
+                  .from('profiles')
+                  .update({ location })
+                  .eq('id', userId)
+              } catch (profileError) {
+                // Profile update failed, but user is created - continue
+                console.error('Profile update error:', profileError)
+              }
+            }
+            // Clear form after a delay
+            setTimeout(() => {
+              setIsLogin(true)
+              setEmail('')
+              setPassword('')
+              setName('')
+              setLocation('')
+              setSuccess('')
+            }, 3000)
+            return
+          }
+          throw error
+        }
 
         // Update profile with location after signup
         if (data.user) {
-          await supabase
-            .from('profiles')
-            .update({ location })
-            .eq('id', data.user.id)
+          try {
+            await supabase
+              .from('profiles')
+              .update({ location })
+              .eq('id', data.user.id)
+          } catch (profileError) {
+            console.error('Profile update error:', profileError)
+            // Don't fail signup if profile update fails
+          }
         }
 
-        router.push('/') // redirect to home after signup
+        // Check if email confirmation is required
+        if (data.user && !data.session) {
+          setSuccess('Please check your email to confirm your account.')
+          // Clear form after a delay
+          setTimeout(() => {
+            setIsLogin(true)
+            setEmail('')
+            setPassword('')
+            setName('')
+            setLocation('')
+            setSuccess('')
+          }, 5000)
+        } else {
+          // User is signed in immediately (email confirmation disabled)
+          router.push('/')
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -134,6 +188,10 @@ export default function AuthPage() {
 
           {error && (
             <div className="text-red-600 text-sm">{error}</div>
+          )}
+
+          {success && (
+            <div className="text-green-600 text-sm">{success}</div>
           )}
 
           <button
