@@ -17,11 +17,25 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
   const [location, setLocation] = useState('')
   const [discoveryDate, setDiscoveryDate] = useState('')
   const [tags, setTags] = useState('')
-  const [imageUrl, setImageUrl] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   if (!isOpen) return null
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setImageFile(file)
+      // Create preview
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,7 +45,29 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
     try {
       const supabase = createClient()
 
-      // Convert tags string to array (split by comma and trim)
+      if (!imageFile) {
+        throw new Error('Please select an image')
+      }
+
+      // Upload image to Supabase Storage
+      const fileExt = imageFile.name.split('.').pop()
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('fossil-images')
+        .upload(fileName, imageFile, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('fossil-images')
+        .getPublicUrl(fileName)
+
+      // Convert tags string to array
       const tagsArray = tags
         ? tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
         : null
@@ -46,10 +82,14 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
           location: location || null,
           discovery_date: discoveryDate || null,
           tags: tagsArray,
-          image_url: imageUrl,
+          image_url: publicUrl,
         })
 
-      if (insertError) throw insertError
+      if (insertError) {
+        // If DB insert fails, clean up the uploaded image
+        await supabase.storage.from('fossil-images').remove([fileName])
+        throw insertError
+      }
 
       // Reset form
       setSpecies('')
@@ -57,7 +97,8 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
       setLocation('')
       setDiscoveryDate('')
       setTags('')
-      setImageUrl('')
+      setImageFile(null)
+      setImagePreview(null)
 
       onClose()
       if (onSuccess) onSuccess()
@@ -70,7 +111,7 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="relative w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
         <button
           onClick={onClose}
           className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -149,16 +190,24 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Image URL <span className="text-red-500">*</span>
+              Image <span className="text-red-500">*</span>
             </label>
             <input
-              type="url"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
               required
-              placeholder="https://example.com/image.jpg"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:text-gray-400 dark:file:bg-gray-700 dark:file:text-gray-300"
             />
+            {imagePreview && (
+              <div className="mt-3">
+                <img 
+                  src={imagePreview} 
+                  alt="Preview" 
+                  className="max-h-64 rounded-md object-contain"
+                />
+              </div>
+            )}
           </div>
 
           {error && (
@@ -180,7 +229,7 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
               disabled={loading}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {loading ? 'Submitting...' : 'Submit'}
+              {loading ? 'Uploading...' : 'Submit'}
             </button>
           </div>
         </form>
@@ -188,4 +237,3 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
     </div>
   )
 }
-
