@@ -1,0 +1,194 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import Image from 'next/image'
+
+interface Fossil {
+  id: string
+  user_id: string
+  species: string | null
+  description: string
+  location: string | null
+  discovery_date: string | null
+  tags: string[] | null
+  image_url: string
+  created_at: string
+  updated_at: string
+}
+
+export default function PersonalFossilsPage() {
+  const [fossils, setFossils] = useState<Fossil[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const fetchFossils = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const supabase = createClient()
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to view your fossils')
+        setLoading(false)
+        return
+      }
+
+      // Fetch fossils for this user
+      const { data, error: fetchError } = await supabase
+        .from('fossils')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (fetchError) throw fetchError
+
+      setFossils(data || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load fossils')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchFossils()
+
+    // Listen for refresh events (e.g., when a new fossil is added)
+    const handleRefresh = () => {
+      fetchFossils()
+    }
+    window.addEventListener('fossils-refresh', handleRefresh)
+
+    return () => {
+      window.removeEventListener('fossils-refresh', handleRefresh)
+    }
+  }, [fetchFossils])
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Unknown'
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    } catch {
+      return dateString
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="mx-auto max-w-7xl">
+          <h1 className="mb-6 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+            Your Fossils
+          </h1>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-96 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="mx-auto max-w-7xl">
+          <h1 className="mb-6 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+            Your Fossils
+          </h1>
+          <div className="rounded-md bg-red-50 p-4 text-red-600 dark:bg-red-900 dark:text-red-300">
+            {error}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-6">
+      <div className="mx-auto max-w-7xl">
+        <h1 className="mb-6 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+          Your Fossils {fossils.length > 0 && `(${fossils.length})`}
+        </h1>
+
+        {fossils.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-gray-700 dark:bg-gray-800">
+            <p className="text-gray-500 dark:text-gray-400">
+              You haven't added any fossils yet. Click the + button in the header to add your first fossil!
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {fossils.map((fossil) => (
+              <div
+                key={fossil.id}
+                className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
+              >
+                <div className="relative h-48 w-full">
+                  <Image
+                    src={fossil.image_url}
+                    alt={fossil.species || 'Fossil'}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
+                </div>
+                <div className="p-4">
+                  <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    {fossil.species || 'Unnamed Fossil'}
+                  </h3>
+                  <p className="mb-3 line-clamp-3 text-sm text-gray-600 dark:text-gray-400">
+                    {fossil.description}
+                  </p>
+                  <div className="space-y-1 text-xs text-gray-500 dark:text-gray-500">
+                    {fossil.location && (
+                      <div className="flex items-center gap-1">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        {fossil.location}
+                      </div>
+                    )}
+                    {fossil.discovery_date && (
+                      <div className="flex items-center gap-1">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {formatDate(fossil.discovery_date)}
+                      </div>
+                    )}
+                  </div>
+                  {fossil.tags && fossil.tags.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {fossil.tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
