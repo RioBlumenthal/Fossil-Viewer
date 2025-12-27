@@ -1,6 +1,8 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
+import { createClient } from '@/lib/supabase/client'
 import type { Fossil } from '@/contexts/FossilCacheContext'
 
 interface FossilDetailModalProps {
@@ -10,6 +12,49 @@ interface FossilDetailModalProps {
 }
 
 export default function FossilDetailModal({ isOpen, onClose, fossil }: FossilDetailModalProps) {
+  const [finderName, setFinderName] = useState<string | null>(null)
+  const [loadingFinder, setLoadingFinder] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen || !fossil) {
+      setFinderName(null)
+      return
+    }
+
+    const fetchFinderName = async () => {
+      setLoadingFinder(true)
+      try {
+        const supabase = createClient()
+        
+        // Get name from profiles table
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', fossil.user_id)
+          .single()
+
+        if (!profileError && profile?.name) {
+          setFinderName(profile.name)
+        } else {
+          // If profile doesn't have name, try to get from user_metadata (for current user only)
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user?.id === fossil.user_id && user.user_metadata?.name) {
+            setFinderName(user.user_metadata.name)
+          } else {
+            setFinderName(null)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching finder name:', error)
+        setFinderName(null)
+      } finally {
+        setLoadingFinder(false)
+      }
+    }
+
+    fetchFinderName()
+  }, [isOpen, fossil])
+
   if (!isOpen || !fossil) return null
 
   const formatDate = (dateString: string | null) => {
@@ -118,6 +163,21 @@ export default function FossilDetailModal({ isOpen, onClose, fossil }: FossilDet
                   </div>
                 </div>
               )}
+
+              {/* Finder */}
+              <div>
+                <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Finder
+                </h3>
+                <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span>
+                    Finder: {loadingFinder ? 'Loading...' : finderName || 'Unknown'}
+                  </span>
+                </div>
+              </div>
 
               {/* Tags */}
               {fossil.tags && fossil.tags.length > 0 && (

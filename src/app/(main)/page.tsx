@@ -96,6 +96,8 @@ export default function Home() {
   useEffect(() => {
     // Listen for refresh events (e.g., when a new fossil is added)
     const handleRefresh = () => {
+      // Clear cache and refetch current page with current filters
+      clearCache()
       fetchAllFossils(currentPage, FOSSILS_PER_PAGE, filters)
     }
     window.addEventListener('fossils-refresh', handleRefresh)
@@ -103,20 +105,7 @@ export default function Home() {
     return () => {
       window.removeEventListener('fossils-refresh', handleRefresh)
     }
-  }, [currentPage, filters, fetchAllFossils])
-
-  useEffect(() => {
-    // Listen for refresh events (e.g., when a new fossil is added)
-    const handleRefresh = () => {
-      // Clear cache and refetch current page
-      fetchAllFossils(currentPage, FOSSILS_PER_PAGE)
-    }
-    window.addEventListener('fossils-refresh', handleRefresh)
-
-    return () => {
-      window.removeEventListener('fossils-refresh', handleRefresh)
-    }
-  }, [currentPage, fetchAllFossils])
+  }, [currentPage, filters, fetchAllFossils, clearCache])
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Unknown'
