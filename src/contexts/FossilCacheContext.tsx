@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-interface Fossil {
+export interface Fossil {
   id: string
   user_id: string
   species: string | null
@@ -59,7 +59,23 @@ export function FossilCacheProvider({ children }: { children: ReactNode }) {
     return `page-${page}-${JSON.stringify(filters)}`
   }
 
-  const applyFilters = (query: any, filters?: SearchFilters) => {
+  const removeSearchQuery = (filters?: SearchFilters): SearchFilters | undefined => {
+    if (!filters?.searchQuery) return filters
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { searchQuery, ...rest } = filters
+    return rest
+  }
+
+  const getErrorMessage = (err: unknown, defaultMsg: string = 'Failed to load fossils'): string => {
+    return err instanceof Error ? err.message : defaultMsg
+  }
+
+  type SupabaseQuery = ReturnType<ReturnType<ReturnType<typeof createClient>['from']>['select']>
+  
+  const applyFilters = useCallback((
+    query: SupabaseQuery,
+    filters?: SearchFilters
+  ): SupabaseQuery => {
     if (!filters) return query
 
     // Species filter
@@ -86,7 +102,7 @@ export function FossilCacheProvider({ children }: { children: ReactNode }) {
     }
 
     return query
-  }
+  }, [])
 
   const filterFossils = (fossils: Fossil[], filters?: SearchFilters): Fossil[] => {
     if (!filters || !filters.searchQuery) return fossils
@@ -127,15 +143,13 @@ export function FossilCacheProvider({ children }: { children: ReactNode }) {
       let dataQuery = supabase.from('fossils').select('*')
 
       // Apply filters (excluding search query which is handled client-side)
-      const filtersWithoutSearch = filters?.searchQuery 
-        ? { ...filters, searchQuery: undefined }
-        : filters
+      const filtersWithoutSearch = removeSearchQuery(filters)
       countQuery = applyFilters(countQuery, filtersWithoutSearch)
       dataQuery = applyFilters(dataQuery, filtersWithoutSearch)
 
       // Fetch total count
       const { count } = await countQuery
-      let totalCount = count || 0
+      const totalCount = count || 0
 
       // Calculate range for pagination
       const from = (page - 1) * pageSize
@@ -153,9 +167,9 @@ export function FossilCacheProvider({ children }: { children: ReactNode }) {
       // Apply client-side search if needed (for description and complex searches)
       if (filters?.searchQuery) {
         // Get all matching fossils (without pagination) to filter by search
-        const allDataQuery = applyFilters(supabase.from('fossils').select('*'), filtersWithoutSearch)
+        const allDataQuery = applyFilters(supabase.from('fossils').select('*'), removeSearchQuery(filters))
         const { data: allFossilsData } = await allDataQuery.order('created_at', { ascending: false })
-        const filteredAll = filterFossils(allFossilsData || [], filters)
+        const filteredAll = filterFossils((allFossilsData || []) as Fossil[], filters)
         setAllFossilsCount(filteredAll.length)
         
         // Filter the current page results
@@ -181,13 +195,12 @@ export function FossilCacheProvider({ children }: { children: ReactNode }) {
 
       return { fossils, totalCount: filters?.searchQuery ? fossils.length : totalCount }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load fossils'
-      setErrorAll(errorMsg)
+      setErrorAll(getErrorMessage(err))
       throw err
     } finally {
       setLoadingAll(false)
     }
-  }, [allFossilsCache])
+  }, [allFossilsCache, applyFilters])
 
   const fetchUserFossils = useCallback(async (filters?: SearchFilters) => {
     // Check cache first (only if filters match or no filters)
@@ -216,10 +229,7 @@ export function FossilCacheProvider({ children }: { children: ReactNode }) {
         .eq('user_id', user.id)
 
       // Apply filters (excluding search query which is handled client-side)
-      const filtersWithoutSearch = filters?.searchQuery 
-        ? { ...filters, searchQuery: undefined }
-        : filters
-      query = applyFilters(query, filtersWithoutSearch)
+      query = applyFilters(query, removeSearchQuery(filters))
 
       // Fetch fossils for this user
       const { data, error: fetchError } = await query.order('created_at', { ascending: false })
@@ -237,11 +247,11 @@ export function FossilCacheProvider({ children }: { children: ReactNode }) {
       setUserFossilsCached(true)
       setUserFossilsFilters(filters)
     } catch (err) {
-      setErrorUser(err instanceof Error ? err.message : 'Failed to load fossils')
+      setErrorUser(getErrorMessage(err))
     } finally {
       setLoadingUser(false)
     }
-  }, [userFossilsCached, userFossilsFilters])
+  }, [userFossilsCached, userFossilsFilters, applyFilters])
 
   const clearCache = useCallback(() => {
     setAllFossils([])

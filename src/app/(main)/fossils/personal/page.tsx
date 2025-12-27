@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import { useFossilCache } from '@/contexts/FossilCacheContext'
+import { useFossilCache, type Fossil } from '@/contexts/FossilCacheContext'
 import FossilSearchFilters, { type SearchFilters } from '@/components/FossilSearchFilters'
+import FossilDetailModal from '@/components/FossilDetailModal'
 
 export default function PersonalFossilsPage() {
   const [filters, setFilters] = useState<SearchFilters>({})
+  const [selectedFossil, setSelectedFossil] = useState<Fossil | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const {
     userFossils: fossils,
     loadingUser: loading,
@@ -52,6 +55,16 @@ export default function PersonalFossilsPage() {
     } catch {
       return dateString
     }
+  }
+
+  const handleFossilClick = (fossil: Fossil) => {
+    setSelectedFossil(fossil)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedFossil(null)
   }
 
   if (loading) {
@@ -112,7 +125,8 @@ export default function PersonalFossilsPage() {
             {fossils.map((fossil) => (
               <div
                 key={fossil.id}
-                className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
+                onClick={() => handleFossilClick(fossil)}
+                className="cursor-pointer overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
               >
                 <div className="relative h-32 w-full bg-gray-50 dark:bg-gray-900">
                   <Image
@@ -169,6 +183,13 @@ export default function PersonalFossilsPage() {
           </div>
         )}
       </div>
+
+      {/* Fossil Detail Modal */}
+      <FossilDetailModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        fossil={selectedFossil}
+      />
     </div>
   )
 }

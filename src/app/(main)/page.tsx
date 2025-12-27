@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
-import { useFossilCache } from '@/contexts/FossilCacheContext'
+import { useFossilCache, type Fossil } from '@/contexts/FossilCacheContext'
 import FossilSearchFilters, { type SearchFilters } from '@/components/FossilSearchFilters'
+import FossilDetailModal from '@/components/FossilDetailModal'
 
 const FOSSILS_PER_PAGE = 12
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState(1)
   const [filters, setFilters] = useState<SearchFilters>({})
+  const [selectedFossil, setSelectedFossil] = useState<Fossil | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const {
     allFossils: fossils,
     allFossilsCount: totalCount,
@@ -75,6 +78,16 @@ export default function Home() {
 
   const totalPages = Math.ceil(totalCount / FOSSILS_PER_PAGE)
 
+  const handleFossilClick = (fossil: Fossil) => {
+    setSelectedFossil(fossil)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedFossil(null)
+  }
+
   if (loading && fossils.length === 0 && !error) {
     return (
       <div className="p-6">
@@ -134,7 +147,8 @@ export default function Home() {
               {fossils.map((fossil) => (
                 <div
                   key={fossil.id}
-                  className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
+                  onClick={() => handleFossilClick(fossil)}
+                  className="cursor-pointer overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
                 >
                   <div className="relative h-32 w-full bg-gray-50 dark:bg-gray-900">
                     <Image
@@ -242,6 +256,13 @@ export default function Home() {
           </>
         )}
       </div>
+
+      {/* Fossil Detail Modal */}
+      <FossilDetailModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        fossil={selectedFossil}
+      />
     </div>
   )
 }
