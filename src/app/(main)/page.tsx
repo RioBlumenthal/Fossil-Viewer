@@ -271,7 +271,7 @@ export default function Home() {
                         {/* Dropdown menu */}
                         {menuOpenFor === fossil.id && (
                           <div
-                            ref={(el) => (menuRefs.current[fossil.id] = el)}
+                            ref={(el) => { menuRefs.current[fossil.id] = el }}
                             className="absolute left-full top-0 ml-1 z-20 w-32 rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
                             onClick={(e) => e.stopPropagation()}
                           >
