@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
@@ -21,8 +21,24 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!isOpen) return null
+
+  const handleClear = () => {
+    setSpecies('')
+    setDescription('')
+    setLocation('')
+    setDiscoveryDate('')
+    setTags('')
+    setImageFile(null)
+    setImagePreview(null)
+    setError('')
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -199,6 +215,7 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
               Image <span className="text-red-500">*</span>
             </label>
             <input
+              ref={fileInputRef}
               type="file"
               accept="image/*"
               onChange={handleImageChange}
@@ -223,6 +240,13 @@ export default function AddFossilModal({ isOpen, onClose, user, onSuccess }: Add
           )}
 
           <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={handleClear}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              Clear
+            </button>
             <button
               type="button"
               onClick={onClose}
