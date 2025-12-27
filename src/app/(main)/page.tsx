@@ -36,9 +36,29 @@ export default function Home() {
 
   useEffect(() => {
     const supabase = createClient()
+    
+    // Get initial session
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user)
     })
+
+    // Listen for auth changes (e.g., logout)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const newUser = session?.user ?? null
+      setUser(newUser)
+      // Close any open menus if user logs out
+      if (!newUser) {
+        setMenuOpenFor(null)
+        setIsEditModalOpen(false)
+        setFossilToEdit(null)
+        setShowDeleteConfirm(false)
+        setFossilToDelete(null)
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   // Close menu when clicking outside
@@ -138,7 +158,7 @@ export default function Home() {
   }
 
   const handleDeleteConfirm = async () => {
-    if (!fossilToDelete) return
+    if (!fossilToDelete || !user) return
     
     setIsDeleting(true)
     setDeleteError('')
@@ -146,11 +166,17 @@ export default function Home() {
     try {
       const supabase = createClient()
       
-      // Delete the fossil from the database
+      // Verify ownership before deleting
+      if (fossilToDelete.user_id !== user.id) {
+        throw new Error('You do not have permission to delete this fossil')
+      }
+      
+      // Delete the fossil from the database (with ownership check)
       const { error } = await supabase
         .from('fossils')
         .delete()
         .eq('id', fossilToDelete.id)
+        .eq('user_id', user.id) // Additional security: verify ownership in query
 
       if (error) throw error
 
@@ -229,7 +255,7 @@ export default function Home() {
                 <div
                   key={fossil.id}
                   onClick={() => handleFossilClick(fossil)}
-                  className="group relative cursor-pointer overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
+                  className="group relative cursor-pointer rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
                 >
                   <div className="relative h-32 w-full bg-gray-50 dark:bg-gray-900">
                     <Image
@@ -241,7 +267,7 @@ export default function Home() {
                     />
                     {/* 3-dot menu - only show for owner */}
                     {isOwner(fossil) && (
-                      <div className="absolute right-2 top-2">
+                      <div className="absolute right-2 top-2 z-10">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -257,7 +283,7 @@ export default function Home() {
                         {menuOpenFor === fossil.id && (
                           <div
                             ref={(el) => (menuRefs.current[fossil.id] = el)}
-                            className="absolute right-0 top-8 z-10 w-32 rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                            className="absolute left-full top-0 ml-1 z-20 w-32 rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button

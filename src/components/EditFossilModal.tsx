@@ -100,12 +100,17 @@ export default function EditFossilModal({ isOpen, onClose, user, fossil, onSucce
         imageUrl = publicUrl
       }
 
+      // Verify ownership before updating
+      if (fossil.user_id !== user.id) {
+        throw new Error('You do not have permission to edit this fossil')
+      }
+
       // Convert tags string to array
       const tagsArray = tags
         ? tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
         : null
 
-      // Update fossil in database
+      // Update fossil in database (with ownership check)
       const { error: updateError } = await supabase
         .from('fossils')
         .update({
@@ -117,6 +122,7 @@ export default function EditFossilModal({ isOpen, onClose, user, fossil, onSucce
           image_url: imageUrl,
         })
         .eq('id', fossil.id)
+        .eq('user_id', user.id) // Additional security: verify ownership in query
 
       if (updateError) throw updateError
 
